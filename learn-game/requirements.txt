@@ -7,7 +7,7 @@ Cython==0.27.3
 Flask==0.12.2
 futures==3.1.1
 get==0.0.39
-html5lib==0.9999999
+html5lib==0.999999999
 idna==2.6
 itsdangerous==0.24
 Jinja2==2.10
