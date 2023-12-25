@@ -4,7 +4,9 @@
 #include <cstring>
 #include <bit>
 #include <mutex>
+#include <random>
 #include <algorithm>
+#include <thread>
 
 constexpr int PRIME_MAX = 50;
 
@@ -62,7 +64,8 @@ void print_mat(frac * data, size_t dims){
     }
     std::cout << "\n";
 }
-int64_t gen_aug(int wordlen, char * word, frac * aug){
+
+int64_t gen_aug(std::mt19937 & rng, int wordlen, const char * word, frac * aug){
     for (int i = 0; i < wordlen; i++){
         aug[i] = frac{word[i] & 0x1f, 1};
     }
@@ -71,8 +74,8 @@ int64_t gen_aug(int wordlen, char * word, frac * aug){
     }
     for (int i = 1; i < wordlen; i++){
         for(int j = 0; j < wordlen; j++){
-            int size = 1+(rand() % 26);
-            aug[i*wordlen*2+j] = (frac{int64_t(rand() % size) - int64_t(size / 2), 1});
+            int size = 1+(rng() % 26);
+            aug[i*wordlen*2+j] = (frac{int64_t(rng() % size) - int64_t(size / 2), 1});
         }
         for(int j = 0; j < wordlen; j++){
             aug[i*wordlen*2+j+wordlen] = frac{int64_t(i == j), 1};
@@ -120,8 +123,9 @@ int64_t gen_aug(int wordlen, char * word, frac * aug){
     int64_t score = 0;
     for (int i = 0; i < wordlen; i++){
         for(int j = 0; j < wordlen; j++){
-            int c = int(std::countl_zero((uint64_t)(abs(aug[i*wordlen*2+j+wordlen].denom))));
-            score += c;
+            int c1 = int(std::countl_zero((uint64_t)(abs(aug[i*wordlen*2+j+wordlen].denom))));
+            int c2 = int(std::countl_zero((uint64_t)(abs(aug[i*wordlen*2+j+wordlen].num))));
+            score += c1 + c2;
         }
     }
     return score;
@@ -132,27 +136,64 @@ int64_t gen_aug(int wordlen, char * word, frac * aug){
 
 }
 
-int main(int argc, char ** argv){
-    assert(argc == 2);
-    srand((unsigned)time(0));
-    const char * worddata = (argv[1]);
-    char word[1000] = {1,0+64};
-    strcpy(word+1, worddata);
-    const size_t wordlen = strlen(word);
-    // frac * matrix = new frac[wordlen*wordlen];
-    frac * best_aug = new frac[wordlen*wordlen*2];
+void best_selector(size_t iters, size_t thread_rand_seed, size_t wordlen, const char * word, frac ** best_aug_global, int64_t * best_score_global){
+    std::mt19937 rng(thread_rand_seed);
+
     frac * aug = new frac[wordlen*wordlen*2];
-    
+    frac * best_aug = new frac[wordlen*wordlen*2];
+
     int64_t best_score = -(1LL<<62);
-    for(int l = 0; l < 1000000; l++){
-        int64_t score = gen_aug(wordlen, word, aug);
+
+    for(int l = 0; l < iters; l++){
+        int64_t score = gen_aug(rng, wordlen, word, aug);
+    // std::cout << score << "\n";
         if(score > best_score){
             best_score = score;
+            // std::swap(aug, best_aug);
             frac * t = aug;
             aug = best_aug;
             best_aug = t;
         }
     }
+    *best_score_global = best_score;
+    *best_aug_global = best_aug;
+    // print_mat(aug, wordlen);
+}
+
+int main(int argc, char ** argv){
+    assert(argc == 3);
+    const char * iters_ch = (argv[1]);
+    const char * worddata = (argv[2]);
+    int iters = atoi(iters_ch);
+    char word[1000] = {1,0+64};
+    strcpy(word+1, worddata);
+    const size_t wordlen = strlen(word);
+    // frac * matrix = new frac[wordlen*wordlen];
+    constexpr size_t N_THREADS = 8;
+    frac * best_augs[N_THREADS];
+    int64_t best_scores[N_THREADS];
+    std::cout << iters << "\n";
+    
+    std::random_device dev;
+    std::vector<std::thread> threads;
+    for(int i = 0; i < N_THREADS; i++){
+        size_t thread_rand_seed = dev();
+        // void best_selector(size_t thread_rand_seed, size_t wordlen, char * word, frac *& best_aug_global, int64_t & best_score_global){
+
+        threads.push_back(std::thread(best_selector, iters, thread_rand_seed, wordlen, word, &best_augs[i], &best_scores[i]));
+    }
+    for(auto & t : threads){
+        t.join();
+    }
+    frac * best_aug = nullptr;
+    int64_t best_score = -(1LL<<62);
+    for(int i = 0; i < N_THREADS; i++){
+        if (best_scores[i] > best_score){
+            best_aug = best_augs[i];
+            best_score = best_scores[i];
+        }
+    }
+
     std::cout << "Score: " << best_score << "\n";
     print_mat(best_aug, wordlen);
     return 0;
