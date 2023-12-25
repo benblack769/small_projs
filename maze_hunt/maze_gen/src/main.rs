@@ -227,7 +227,7 @@ fn mutate_weights(weights: &[i32; MAZE_BUF])->[i32; MAZE_BUF]{
     weights_copy
 }
 
-const NUM_GENERATIONS: usize = 20000;
+const NUM_GENERATIONS: usize = 2000;
 const NUM_ITEMS:usize = 96;
 fn generate_maze(letter_pattern: &[bool; MAZE_BUF]) -> Box<[bool; MAZE_BUF]> {
     let mut cur_weights:Vec<(i32,Box<[i32; MAZE_BUF]>)> = (0..NUM_ITEMS).map(|x|{
@@ -280,6 +280,31 @@ fn save_maze(walls: &[bool; MAZE_BUF], out_fname:&str) {
     out_img.save(out_fname).unwrap();
 }
 
+
+fn save_maze_solved(walls: &[bool; MAZE_BUF], out_fname:&str) {
+    let start_coord = (RATIO as u32 * 2 + 1, 1 as u32);
+    let end_coord = (RATIO as u32 * 10 - 1, MAZE_SIZE as u32 - 3);
+
+    let start_coord = (RATIO * 2 + 1, 1 as usize);
+    let end_coord = (RATIO * 10 - 1, MAZE_SIZE - 3);
+    let sol = solve_maze(&walls).unwrap().1;
+    // for y in 0..MAZE_SIZE {
+    //     for x in 0..MAZE_SIZE {
+    const PIXEL_SIZE:u32 = 12;
+    const IMG_SIZE:u32 = PIXEL_SIZE * MAZE_SIZE as u32;
+    let mut imgbuf = image::ImageBuffer::new(MAZE_SIZE as u32, MAZE_SIZE as u32);
+    for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
+        // let is_end = (x,y) == (start_coord) || (x,y) == end_coord;
+        let is_end = sol[p((x as usize, y as usize))];
+        let val = walls[pi((x as i32,y as i32))];
+        let rgb_val:[u8;3] = if is_end { [0,0,255] } else { if val {[144,238,144]} else {[255,255,255]} };
+        *pixel = image::Rgb(rgb_val);
+    }
+    let out_img = image::imageops::resize(&imgbuf, IMG_SIZE, IMG_SIZE,image::imageops::FilterType::Nearest);
+    // imgbuf.resize
+    out_img.save(out_fname).unwrap();
+}
+
 fn main() {
     let mut stdfile = File::open("letters.bin").unwrap();
     let mut letters: Vec<[u8; LETTER_BUF]> = Vec::new();
@@ -288,12 +313,14 @@ fn main() {
         stdfile.read(&mut letters_buf).unwrap();
         letters.push(letters_buf);
     }
-    let clue = b"tea".iter().map(|x|*x-b'a').enumerate().for_each(|(i,l)|{    
+    let clue = b"ssss".iter().map(|x|*x-b'a').enumerate().for_each(|(i,l)|{    
         print!("\nLetter {}\n\n",i+1);
         let maze = generate_maze(&upscale_letter(letters[l as usize]));
         print_walls(&maze);
         let fname = format!("letter_{}.png",i+1);
+        let fname_solved = format!("letter_solution_{}.png",i+1);
         save_maze(&maze, &fname);
+        save_maze_solved(&maze, &fname_solved);
     });
     
 }
