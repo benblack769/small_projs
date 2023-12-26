@@ -28,13 +28,18 @@ struct frac{
     frac operator / (frac other){
         frac d = (*this) * other;
         assert(d.num != 0);
-        return frac{d.denom, d.num};
+        return frac{num * other.denom, denom * other.num};
     }
-    // void hard_simplify(){
-
+    // template<int p>
+    // void simplify_p(){
+    //     frac & f = *this;
+    //     while((f.num) % p == 0 && (f.denom) % p == 0){
+    //         f.num /= p;
+    //         f.denom /= p;
+    //     }
     // }
     bool simplify(){
-        int primes[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97};
+        int primes[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53};
         int num_primes = sizeof(primes) / sizeof(primes[0]);
         frac & f = *this;
         if(f.denom < 0){
@@ -54,19 +59,27 @@ struct frac{
         }
         for(int i = 0; i < num_primes; i++){
             int p = primes[i];
-            while(abs(f.num) % p == 0 && abs(f.denom) % p == 0){
+            while((f.num) % p == 0 && (f.denom) % p == 0){
                 f.num /= p;
                 f.denom /= p;
             }
         }
-        return (f.num > (1LL<<32) || f.denom > (1LL<<32));
+        return (f.num > (1LL<<14) || f.denom > (1LL<<14));
     }
 };
 void print_mat(frac * data, size_t dims){
     for(size_t i = 0; i < dims; i++){
         for (size_t j = 0; j < dims; j++){
             frac f = data[i*dims+j];
-            std::cout<<(f.num) << "/" <<  (f.denom) << "\t";
+            if (f.denom == 1){
+                std::cout<< (f.num);
+            }
+            else{
+                std::cout<<(f.num) << "/" <<  (f.denom);
+            }
+            if (j != dims-1){
+                std::cout << ",";
+            }
         }
         std::cout << "\n";
     }
@@ -96,6 +109,7 @@ bool invert_matrix(int wordlen, frac * mat, frac * inv){
         // print_mat(aug, wordlen);
         frac mul = aug[i*wordlen*2+i];
         if(mul.num == 0){
+            // std::cout << "bad mul num" << std::endl;
             return false;
         }
         assert(mul.num != 0);
@@ -104,6 +118,8 @@ bool invert_matrix(int wordlen, frac * mat, frac * inv){
             if(cur.num != 0){
                 cur = cur / mul;
                 if(cur.simplify()){
+                    // std::cout << cur.num << '\t' << cur.denom << std::endl;
+                    // std::cout << "simplerr1" << std::endl;
                     return false;
                 }
             }
@@ -140,11 +156,12 @@ bool invert_matrix(int wordlen, frac * mat, frac * inv){
     for(int i = 0; i < wordlen; i++){
         for(int j = 0; j < wordlen; j++){
             frac tmplate = aug[i*wordlen*2+j];
-            if(!((tmplate.num == int(i == j) && (tmplate.denom == 1)))){
-                // print_mat(base, wordlen);
-                // print_mat(inv, wordlen);
-                return false;
-            }
+            assert(((tmplate.num == int(i == j) && (tmplate.denom == 1))));
+            // if(!((tmplate.num == int(i == j) && (tmplate.denom == 1)))){
+            //     print_mat(base, wordlen);
+            //     print_mat(inv, wordlen);
+            //     return false;
+            // }
         }
     }
     return true;
@@ -153,6 +170,12 @@ bool invert_matrix(int wordlen, frac * mat, frac * inv){
 int64_t score_matrix(frac * mat, int wordlen, const char * word){
     frac inv[10000];
     bool result = invert_matrix(wordlen, mat, inv);
+    if(!result){
+        return -(1LL<<62);
+    }
+    // also check that the inverse is invertible
+    frac inv2[10000];
+     result = invert_matrix(wordlen, inv, inv2);
     if(!result){
         return -(1LL<<62);
     }
@@ -219,8 +242,41 @@ int main(int argc, char ** argv){
     char word[1000] = {1};
     strcpy(word+1, worddata);
     const size_t wordlen = strlen(word);
-    // frac * matrix = new frac[wordlen*wordlen];
-    constexpr size_t N_THREADS = 1;
+    // frac mat[1000];
+    // frac inv[1000];
+    // std::random_device dev;
+    // std::mt19937 rng(dev());
+    // do{
+    // generate_matrix(mat, rng, wordlen, word);
+    // }
+    // while(!invert_matrix(wordlen, mat, inv));
+    // std::cout << "Mat\n"; 
+    // print_mat(mat, wordlen);
+    
+    // frac prod[10000];
+    // for (int i = 0; i < wordlen; i++){
+    //     for(int j = 0; j < wordlen; j++){
+    //         frac sum{0,1};
+    //         for(int k = 0; k < wordlen; k++){
+    //             sum = sum + mat[i*wordlen+k] * inv[k*wordlen+j];
+    //         }
+    //         assert(!sum.simplify());
+    //         prod[i*wordlen+j] = sum;
+    //         // int expected = int(i == j);
+    //         // if(sum.num != expected || sum.denom != 1){
+    //         //     std::cout << sum.num << "\t" << sum.denom << "\n";
+    //         //     return -(1LL<<62);
+    //         // }
+    //     }
+    // }
+    // std::cout << "Inv\n"; 
+    // print_mat(inv, wordlen);
+    // std::cout << "Prod\n"; 
+    // print_mat(prod, wordlen);
+
+    // return 0;
+    frac * matrix = new frac[wordlen*wordlen];
+    constexpr size_t N_THREADS = 8;
     frac * best_mats[N_THREADS];
     int64_t best_scores[N_THREADS];
     std::cout << iters << "\n";
