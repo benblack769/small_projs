@@ -9,6 +9,8 @@
 #include <thread>
 
 // constexpr int DIV_MAX = 1000;
+constexpr int primes[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53};
+constexpr int num_primes = sizeof(primes) / sizeof(primes[0]);
 
 struct frac{
     int64_t num;
@@ -30,17 +32,22 @@ struct frac{
         assert(d.num != 0);
         return frac{num * other.denom, denom * other.num};
     }
-    // template<int p>
-    // void simplify_p(){
-    //     frac & f = *this;
-    //     while((f.num) % p == 0 && (f.denom) % p == 0){
-    //         f.num /= p;
-    //         f.denom /= p;
-    //     }
-    // }
+    template<int pidx>
+    void simplify_p(){
+        frac & f = *this;
+        constexpr int p = primes[pidx];
+        if (abs(f.num) < p*p && abs(f.num) != p){
+            return;
+        }
+        while((f.num) % p == 0 && (f.denom) % p == 0){
+            f.num /= p;
+            f.denom /= p;
+        }
+        simplify_p<pidx+1>();
+    }
+    template<>
+    void simplify_p<num_primes>(){}
     bool simplify(){
-        int primes[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53};
-        int num_primes = sizeof(primes) / sizeof(primes[0]);
         frac & f = *this;
         if(f.denom < 0){
             f.denom = -f.denom;
@@ -57,13 +64,14 @@ struct frac{
             f.denom = 1;
             return false;
         }
-        for(int i = 0; i < num_primes; i++){
-            int p = primes[i];
-            while((f.num) % p == 0 && (f.denom) % p == 0){
-                f.num /= p;
-                f.denom /= p;
-            }
-        }
+        simplify_p<0>();
+        // for(int i = 0; i < num_primes; i++){
+        //     int p = primes[i];
+        //     while((f.num) % p == 0 && (f.denom) % p == 0){
+        //         f.num /= p;
+        //         f.denom /= p;
+        //     }
+        // }
         return (f.num > (1LL<<14) || f.denom > (1LL<<14));
     }
 };
